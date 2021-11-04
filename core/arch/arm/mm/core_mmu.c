@@ -2501,7 +2501,7 @@ void *core_mmu_map_rti_check(paddr_t pa, size_t len, size_t *mapped_len)
 	uint32_t attr = 0;
 	size_t idx = 0;
 
-	DMSG("%#"PRIxPA":%#zx", pa, len);
+	// DMSG("%#"PRIxPA":%#zx", pa, len);
 
 	/* Refuse to map memory which isn't know to be non-secure */
 	if (!core_pbuf_is(CORE_MEM_NON_SEC, pa, len))
@@ -2511,6 +2511,27 @@ void *core_mmu_map_rti_check(paddr_t pa, size_t len, size_t *mapped_len)
 	if (!map)
 		panic("MEM_AREA_RTI_CHECK_VASPACE not found");
 	vabase = map->va;
+
+	/*
+	if (pa == 0) {
+		DMSG("UNMAP %#"PRIxPA":%#zx", pa, len);
+
+		core_mmu_unmap_pages(vabase, 1);
+		*mapped_len = 0;
+		return NULL;
+	}
+
+	DMSG("MAP %#"PRIxPA":%#zx", pa, len);
+	TEE_Result mres = core_mmu_map_pages(vabase, &pa, 1, MEM_AREA_RTI_CHECK_VASPACE);
+	if (mres) { // failed
+		return NULL;
+	}
+
+	DMSG("MAP success %#"PRIxPA":%#zx", pa, len);
+
+	*mapped_len = len;
+	return (void *)vabase;
+	*/
 
 	if (!core_mmu_find_table(NULL, vabase, CORE_MMU_PGDIR_LEVEL - 1,
 				 &tbl_info))
@@ -2531,11 +2552,16 @@ void *core_mmu_map_rti_check(paddr_t pa, size_t len, size_t *mapped_len)
 		core_mmu_set_entry(&tbl_info, idx, 0, 0);
 		tlbi_mva_range(vabase, CORE_MMU_PGDIR_SIZE, old_granule);
 	}
-	if (!len)
+	if (!len) {
+		// DMSG("[ERROR] - NOT LEN\n");
 		return NULL;
+	}
+		
 	/* We cannot map anything smaller than a page */
-	if ((pa | len) & SMALL_PAGE_MASK)
-		return NULL;
+	// if ((pa | len) & SMALL_PAGE_MASK) {
+	// 	DMSG("[ERROR] - SMALLER THAN PAGE\n");
+	// 	return NULL;
+	// }
 
 	if ((pa & CORE_MMU_PGDIR_MASK) || len < CORE_MMU_PGDIR_SIZE) {
 		/* Map using page granularity */
@@ -2581,7 +2607,7 @@ void *core_mmu_map_rti_check(paddr_t pa, size_t len, size_t *mapped_len)
 	/* Make sure that the table update above is visible.  */
 	dsb_ishst();
 
-	DMSG("*mapped_len %#zx", *mapped_len);
+	// DMSG("*mapped_len %#zx", *mapped_len);
 
 	return (void *)vabase;
 }
