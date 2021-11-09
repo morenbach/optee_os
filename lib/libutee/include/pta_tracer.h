@@ -242,4 +242,6 @@ status_t tracer_read_addr(tracer_t* tracer, const access_context_t *ctx, addr_t 
 
 status_t pagetable_lookup(tracer_t* tracer, addr_t pt, addr_t vaddr, addr_t *paddr);
 
+status_t process_list(tracer_t* tracer);
+
 #endif /* __PTA_TRACER_H */

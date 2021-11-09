@@ -203,7 +203,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
 {
 	status_t status = TRACER_F;
 
-    DMSG("--ARM AArch64 PTLookup: vaddr = 0x%.16"PRIx64", pt = 0x%.16"PRIx64"\n", vaddr, pt);    
+    // DMSG("--ARM AArch64 PTLookup: vaddr = 0x%.16"PRIx64", pt = 0x%.16"PRIx64"\n", vaddr, pt);    
 
     bool is_pt_ttbr1 = false;
     page_size_t ps;
@@ -234,8 +234,8 @@ status_t v2p_aarch64 (tracer_t* tracer,
 
     if ( 4 == levels ) {
         get_zero_level_4kb_descriptor(tracer, pt, vaddr, info);
-        DMSG("--ARM AArch64 PTLookup: zld_value = 0x%"PRIx64"\n",
-                info->arm_aarch64.zld_value);
+        // DMSG("--ARM AArch64 PTLookup: zld_value = 0x%"PRIx64"\n",
+        //         info->arm_aarch64.zld_value);
 
         if ( (info->arm_aarch64.zld_value & BIT_MASK(0,1)) != 0b11)
             goto done;
@@ -247,7 +247,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
     if ( 3 == levels) {
         if ( PS_4KB == ps ) {
             get_first_level_4kb_descriptor(tracer, pt, vaddr, info);
-            DMSG("--ARM AArch64 4kb PTLookup: fld_value = 0x%"PRIx64"\n", info->arm_aarch64.fld_value);
+            // DMSG("--ARM AArch64 4kb PTLookup: fld_value = 0x%"PRIx64"\n", info->arm_aarch64.fld_value);
 
             switch (info->arm_aarch64.fld_value & BIT_MASK(0,1)) {
                 case 0b11:
@@ -266,7 +266,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
         }
         if ( PS_64KB == ps ) {
             get_first_level_64kb_descriptor(tracer, pt, vaddr, info);
-            DMSG("--ARM AArch64 64kb PTLookup: fld_value = 0x%"PRIx64"\n", info->arm_aarch64.fld_value);
+            // DMSG("--ARM AArch64 64kb PTLookup: fld_value = 0x%"PRIx64"\n", info->arm_aarch64.fld_value);
 
             switch (info->arm_aarch64.fld_value & BIT_MASK(0,1)) {
                 case 0b11:
@@ -282,12 +282,12 @@ status_t v2p_aarch64 (tracer_t* tracer,
     if ( 2 == levels ) {
         if ( PS_4KB == ps ) {
             get_second_level_4kb_descriptor(tracer, pt, vaddr, info);
-            DMSG("--ARM AArch64 4kb PTLookup: sld_value = 0x%"PRIx64"\n", info->arm_aarch64.sld_value);
+            // DMSG("--ARM AArch64 4kb PTLookup: sld_value = 0x%"PRIx64"\n", info->arm_aarch64.sld_value);
 
             switch (info->arm_aarch64.sld_value & BIT_MASK(0,1)) {
                 case 0b11:
                     get_third_level_4kb_descriptor(tracer, vaddr, info);
-                    DMSG("--ARM AArch64 4kb PTLookup: tld_value = 0x%"PRIx64"\n", info->arm_aarch64.tld_value);
+                    // DMSG("--ARM AArch64 4kb PTLookup: tld_value = 0x%"PRIx64"\n", info->arm_aarch64.tld_value);
 
                     info->size = PS_4KB;
                     info->paddr = (info->arm_aarch64.tld_value & BIT_MASK(12,47)) | (vaddr & BIT_MASK(0,11));
@@ -304,12 +304,12 @@ status_t v2p_aarch64 (tracer_t* tracer,
         }
         if (PS_64KB == ps ) {
             get_second_level_64kb_descriptor(tracer, pt, vaddr, info);
-            DMSG("--ARM AArch64 64kb PTLookup: sld_value = 0x%"PRIx64"\n", info->arm_aarch64.sld_value);
+            // DMSG("--ARM AArch64 64kb PTLookup: sld_value = 0x%"PRIx64"\n", info->arm_aarch64.sld_value);
 
             switch (info->arm_aarch64.sld_value & BIT_MASK(0,1)) {
                 case 0b11:
                     get_third_level_64kb_descriptor(tracer, vaddr, info);
-                    DMSG("--ARM AArch64 64kb PTLookup: tld_value = 0x%"PRIx64"\n", info->arm_aarch64.tld_value);
+                    // DMSG("--ARM AArch64 64kb PTLookup: tld_value = 0x%"PRIx64"\n", info->arm_aarch64.tld_value);
 
                     info->size = PS_4KB;
                     info->paddr = (info->arm_aarch64.tld_value & BIT_MASK(16,47)) | (vaddr & BIT_MASK(0,15));
@@ -327,7 +327,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
     }
 
 done:    
-    DMSG("--ARM PTLookup: PA = 0x%"PRIx64"\n", info->paddr);
+    // DMSG("--ARM PTLookup: PA = 0x%"PRIx64"\n", info->paddr);
     return status;
 }
 
@@ -395,23 +395,24 @@ status_t tracer_read(
 			if (TRACER_S != pagetable_lookup(tracer, pt, start_addr + buf_offset, &paddr)) {
 				goto done;	
 			}
-            IMSG("--[INFO] v2p 0x%lx -> 0x%lx\n", (start_addr + buf_offset), paddr);
+            // IMSG("--[INFO] v2p 0x%lx -> 0x%lx\n", (start_addr + buf_offset), paddr);
 		} else {
             paddr = start_addr + buf_offset;
         }        
 
         pfn = paddr >> tracer->page_shift;
-        IMSG("--Reading pfn 0x%lx\n", pfn);
+        // IMSG("--Reading pfn 0x%lx\n", pfn);
 
         offset = (tracer->page_size - 1) & paddr;
 
-        if ((offset + count) > tracer->page_size)
+        if ((offset + count) > tracer->page_size) {
             read_len = tracer->page_size - offset;
-        else
+        } else {
             read_len = count;
+        }
 
 	    char *p = NULL;
-	    size_t maplen = 0;
+	    // size_t maplen = 0;
         paddr_t pa = (pfn << tracer->page_shift);
         // map the physical page
 		// p = core_mmu_map_rti_check((pfn << tracer->page_shift), PS_4KB, &maplen);
@@ -448,11 +449,11 @@ status_t tracer_read(
         // }
 
         memmove((char*)buf + (addr_t)buf_offset, p + (addr_t)offset, read_len);		
-        IMSG("--Map PA 0x%lx into %p and read into %p from %p/0x%lx sz %lu/%lu\n", pa, p, (char*)buf + (addr_t)buf_offset, p + (addr_t)offset, paddr, read_len, count);
+        // IMSG("--Map PA 0x%lx into %p and read into %p from %p/0x%lx sz %lu/%lu\n", pa, p, (char*)buf + (addr_t)buf_offset, p + (addr_t)offset, paddr, read_len, count);
 
 		// unmap range
 		// core_mmu_map_rti_check(0, 0, &maplen);
-        core_mmu_unmap_pages(p, 1);
+        core_mmu_unmap_pages((vaddr_t)p, 1);
 	    tee_mm_free(mmentry);
 
         count -= read_len;
@@ -481,7 +482,7 @@ static status_t init_kaslr(tracer_t* tracer)
 		// }
 
 		tracer->os_data.kaslr_offset = tracer->init_task - init_task_symbol_addr;
-		DMSG("**calculated KASLR offset from pre-defined init_task addr: 0x%" PRIx64"\n", tracer->os_data.kaslr_offset);
+		// DMSG("**calculated KASLR offset from pre-defined init_task addr: 0x%" PRIx64"\n", tracer->os_data.kaslr_offset);
 		return TRACER_S;
 	}
 
@@ -490,7 +491,7 @@ static status_t init_kaslr(tracer_t* tracer)
 
 static status_t init_task_kaslr_test(tracer_t* tracer, addr_t page_vaddr)
 {
-    DMSG("**RUNNING KASLR TEST\n");
+    // DMSG("**RUNNING KASLR TEST\n");
 	status_t ret = TRACER_F;
 	uint32_t pid = -1;
 	addr_t addr = ~0;
@@ -501,35 +502,35 @@ static status_t init_task_kaslr_test(tracer_t* tracer, addr_t page_vaddr)
 	if (TRACER_F == tracer_read_32bit(tracer, &ctx, &pid))
 		return ret;
 
-    DMSG("**RUNNING KASLR TEST - READ PID offset\n");
+    // DMSG("**RUNNING KASLR TEST - READ PID offset\n");
 
 	if (0 != pid)
 		return ret;
 
-    DMSG("**RUNNING KASLR TEST - PID correct\n");
+    // DMSG("**RUNNING KASLR TEST - PID correct\n");
 
 	ctx.addr = init_task + tracer->os_data.mm_offset;
 	if (TRACER_F == tracer_read_addr(tracer, &ctx, &addr))
 		return ret;
 
-    DMSG("**RUNNING KASLR TEST - read mm offset\n");
+    // DMSG("**RUNNING KASLR TEST - read mm offset\n");
 
 	if (0 != addr)
 		return ret;
     
-    DMSG("**RUNNING KASLR TEST - mm correct\n");
+    // DMSG("**RUNNING KASLR TEST - mm correct\n");
 
 	ctx.addr = init_task + tracer->os_data.tasks_offset;
 	if (TRACER_F == tracer_read_addr(tracer, &ctx, &addr))
 		return ret;
 
-    DMSG("**RUNNING KASLR TEST - read task offset 0x%lx\n", addr);
+    // DMSG("**RUNNING KASLR TEST - read task offset 0x%lx\n", addr);
 
 	ctx.addr = addr;
 	if (TRACER_F == tracer_read_addr(tracer, &ctx, &addr))
 		return ret;
 
-    DMSG("**RUNNING KASLR TEST - task addr read succesfully\n");
+    // DMSG("**RUNNING KASLR TEST - task addr read succesfully\n");
 
 	ctx.addr = init_task + tracer->os_data.name_offset;
     char init_task_name[16];    
@@ -537,7 +538,7 @@ static status_t init_task_kaslr_test(tracer_t* tracer, addr_t page_vaddr)
     if (TRACER_F == tracer_read(tracer, &ctx, 16, init_task_name, &bytes_read)) 
 		return ret;
 
-    DMSG("**RUNNING KASLR TEST - task name read with %lu %s\n", bytes_read, init_task_name);
+    // DMSG("**RUNNING KASLR TEST - task name read with %lu %s\n", bytes_read, init_task_name);
     init_task_name[7] = '\0';
 
     // if (bytes_read != 7)
@@ -546,7 +547,7 @@ static status_t init_task_kaslr_test(tracer_t* tracer, addr_t page_vaddr)
 	if (!strncmp("swapper", init_task_name, 7))
 		ret = TRACER_S;
     
-    DMSG("**RUNNING KASLR TEST - task name correct %s\n", init_task_name);
+    // DMSG("**RUNNING KASLR TEST - task name correct %s\n", init_task_name);
 
 	return ret;
 }
@@ -605,27 +606,25 @@ aarch64_pd_exit:
 }
 
 
-static status_t find_page_directories(tracer_t* tracer, addr_t c)
+static status_t find_page_directories(tracer_t* tracer)
 {
 	// NOTE: page mode is aarch64.
 	status_t rc = TRACER_F;
 	addr_t candidate;
 
-    tracer->kpgd = c;
-    if (TRACER_S == verify_linux_paging(tracer))
-    {
-        rc = TRACER_S;
-        DMSG("Found PGD candidate 0x%lx\n", candidate);        
-    }
-    return rc;
+    // tracer->kpgd = c;
+    // if (TRACER_S == verify_linux_paging(tracer))
+    // {
+    //     rc = TRACER_S;
+    //     DMSG("Found PGD candidate 0x%lx\n", candidate);        
+    // }
+    // return rc;
 
 	// brute force scan the memory for candidate addresses	
-	// for (candidate = 0x40000000; candidate < 0x41ffffff; candidate += PS_4KB)
 	for (candidate = 0x1000; candidate < MAX_PHYSICAL_ADDRESS; candidate += PS_4KB)
 	{
 		// if (is_aarch64_pd(tracer, candidate))
 		{
-            // DMSG("verify page candidate 0x%lx\n", candidate);
 			tracer->kpgd = candidate;
 			if (TRACER_S == verify_linux_paging(tracer))
 			{
@@ -635,76 +634,14 @@ static status_t find_page_directories(tracer_t* tracer, addr_t c)
 			}
 		}
 	}
-/*
-	for (candidate = 0x42200000; candidate < 0x7de3ffff; candidate += PS_4KB)
-	// for (candidate = 0x1000; candidate < MAX_PHYSICAL_ADDRESS; candidate += PS_4KB)
-	{
-		// if (is_aarch64_pd(tracer, candidate))
-		{
-            // DMSG("verify page candidate 0x%lx\n", candidate);
-			tracer->kpgd = candidate;
-			if (TRACER_S == verify_linux_paging(tracer))
-			{
-				rc = TRACER_S;
-				DMSG("Found PGD candidate 0x%lx\n", candidate);
-				break;
-			}
-		}
-	}
-
-	for (candidate = 0x7e180000; candidate < 0x8145ffff; candidate += PS_4KB)
-	// for (candidate = 0x1000; candidate < MAX_PHYSICAL_ADDRESS; candidate += PS_4KB)
-	{
-		// if (is_aarch64_pd(tracer, candidate))
-		{
-            // DMSG("verify page candidate 0x%lx\n", candidate);
-			tracer->kpgd = candidate;
-			if (TRACER_S == verify_linux_paging(tracer))
-			{
-				rc = TRACER_S;
-				DMSG("Found PGD candidate 0x%lx\n", candidate);
-				break;
-			}
-		}
-	}
-
-	for (candidate = 0x814f0000; candidate < 0x814fffff; candidate += PS_4KB)
-	// for (candidate = 0x1000; candidate < MAX_PHYSICAL_ADDRESS; candidate += PS_4KB)
-	{
-		// if (is_aarch64_pd(tracer, candidate))
-		{
-            // DMSG("verify page candidate 0x%lx\n", candidate);
-			tracer->kpgd = candidate;
-			if (TRACER_S == verify_linux_paging(tracer))
-			{
-				rc = TRACER_S;
-				DMSG("Found PGD candidate 0x%lx\n", candidate);
-				break;
-			}
-		}
-	}
-
-	for (candidate = 0x81620000; candidate < 0x820fffff; candidate += PS_4KB)
-	// for (candidate = 0x1000; candidate < MAX_PHYSICAL_ADDRESS; candidate += PS_4KB)
-	{
-		// if (is_aarch64_pd(tracer, candidate))
-		{
-            // DMSG("verify page candidate 0x%lx\n", candidate);
-			tracer->kpgd = candidate;
-			if (TRACER_S == verify_linux_paging(tracer))
-			{
-				rc = TRACER_S;
-				DMSG("Found PGD candidate 0x%lx\n", candidate);
-				break;
-			}
-		}
-	}
-*/
 	return rc;
 }
 
-static status_t init_tracer(tracer_t* tracer, addr_t va_init_task) {
-	// init json stuff.		
+static status_t init_tracer(tracer_t* tracer) {
+	// init symbols/addresses information.
+    // TODO: hard coded for now for security reasons. Need to come up with compiler flags to make it easier when deploying.
+    addr_t va_init_task = 0xffff800011cf3480;
+
 	tracer->init_task = canonical_addr(va_init_task);	
 	tracer->os_data.init_task_fixed = tracer->init_task;
 
@@ -723,27 +660,103 @@ static status_t init_tracer(tracer_t* tracer, addr_t va_init_task) {
 	return TRACER_S;
 }
 
+status_t process_list(tracer_t* tracer) {
+    char procname[16];
+    pid_t pid = 0;
+    addr_t current_process = 0;
+    addr_t list_head = 0, cur_list_entry = 0, next_list_entry = 0;
+    list_head = tracer->os_data.init_task_fixed + tracer->os_data.tasks_offset;
+    cur_list_entry = list_head;
+
+    // Initialize next entry
+    //
+    access_context_t ctx = { .pt = tracer->kpgd, .addr = cur_list_entry, .pt_lookup = true };
+    if (TRACER_F == tracer_read_addr(tracer, &ctx, &next_list_entry)) {
+        DMSG("Failed to read next pointer in loop at %"PRIx64"\n", cur_list_entry);
+        return TRACER_F;
+    }
+
+    /* walk the task list */
+    while (1) {
+        current_process = cur_list_entry - tracer->os_data.tasks_offset;
+
+        /* Note: the task_struct that we are looking at has a lot of
+         * information.  However, the process name and id are burried
+         * nice and deep.  Instead of doing something sane like mapping
+         * this data to a task_struct, I'm just jumping to the location
+         * with the info that I want.  This helps to make the example
+         * code cleaner, if not more fragile.  In a real app, you'd
+         * want to do this a little more robust :-)  See
+         * include/linux/sched.h for mode details */
+        ctx.addr = current_process + tracer->os_data.pid_offset;
+        tracer_read_32bit(tracer, &ctx, (uint32_t*)&pid);
+
+        ctx.addr = current_process + tracer->os_data.name_offset;
+        size_t bytes_read;    
+        if (TRACER_F == tracer_read(tracer, &ctx, 16, procname, &bytes_read)) {
+            DMSG("Failed to find procname\n");
+            return TRACER_F;
+        } 
+        // procname = tracer_read_str_va(tracer, current_process + tracer->os_data.name_offset, 0);
+
+        // if (!procname) {
+        //     DMSG("Failed to find procname\n");
+        //     return TRACER_F;
+        // }
+
+        /* print out the process name */
+        IMSG("[INFO] [%5d] %s (struct addr:%"PRIx64")\n", pid, procname, current_process);
+        // if (procname) {
+        //     free(procname);
+        //     procname = NULL;
+        // }
+
+        /* follow the next pointer */
+        cur_list_entry = next_list_entry;
+        ctx.addr = cur_list_entry;
+        if (TRACER_F == tracer_read_addr(tracer, &ctx, &next_list_entry)) {
+            DMSG("Failed to read next pointer in loop at %"PRIx64"\n", cur_list_entry);
+            return TRACER_F;
+        }
+
+        if (cur_list_entry == list_head) {
+            break;
+        }
+    }
+
+    return TRACER_S;
+}
+
 static TEE_Result trace_cfa(uint32_t type, TEE_Param p[TEE_NUM_PARAMS])
 {
+    (void)p;
+    (void)type;
 	DMSG("Trace CFA has been called\n");
 
 	// initialize tracer by getting page table location of normal world
 	//
 	tracer_t tracer;
-    addr_t va_init_task = 0xffff800011cf3480; // TODO: hard coded for now
-	init_tracer(&tracer, va_init_task);
+	init_tracer(&tracer);
 
-    DMSG("Init tracer done %d %d\n", p[0].value.a, p[0].value.b);
-    addr_t c = p[0].value.b;    
-    c <<= 32;
-    c += p[0].value.a;
-	find_page_directories(&tracer, c);
+    DMSG("Init tracer done\n");
+    // addr_t c = p[0].value.b;    
+    // c <<= 32;
+    // c += p[0].value.a;
+	// find_page_directories(&tracer, c);
+	if (find_page_directories(&tracer) == TRACER_F) {
+        return TEE_ERROR_BAD_STATE;
+    }
 
-    if (type != TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
-                    TEE_PARAM_TYPE_NONE,
-                    TEE_PARAM_TYPE_NONE,
-                    TEE_PARAM_TYPE_NONE))
-        return TEE_SUCCESS;
+    // Run a simple process list forensic for a sanity check
+    //
+    process_list(&tracer);
+
+    // if (type != TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
+    //                 TEE_PARAM_TYPE_NONE,
+    //                 TEE_PARAM_TYPE_NONE,
+    //                 TEE_PARAM_TYPE_NONE)) {
+    //     return TEE_SUCCESS;
+    // }
 
 	return TEE_SUCCESS;
 }
@@ -756,6 +769,7 @@ static TEE_Result invoke_command(void *psess __unused,
 				 uint32_t cmd, uint32_t ptypes,
 				 TEE_Param params[TEE_NUM_PARAMS])
 {
+    (void)cmd;
     DMSG("===Tracer invoke command called!\n");
     return trace_cfa(ptypes, params);
 
