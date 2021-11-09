@@ -21,6 +21,8 @@
 #include <tee/uuid.h>
 #include <user_ta_header.h>
 #include <mm/core_mmu.h>
+#include <mm/core_memprot.h>
+#include <mm/tee_pager.h>
 
 status_t tracer_read_memory(void* dst_buffer, addr_t src_paddr, size_t count) {	
 	size_t pos = 0;
@@ -201,7 +203,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
 {
 	status_t status = TRACER_F;
 
-    // DMSG("--ARM AArch64 PTLookup: vaddr = 0x%.16"PRIx64", pt = 0x%.16"PRIx64"\n", vaddr, pt);    
+    DMSG("--ARM AArch64 PTLookup: vaddr = 0x%.16"PRIx64", pt = 0x%.16"PRIx64"\n", vaddr, pt);    
 
     bool is_pt_ttbr1 = false;
     page_size_t ps;
@@ -232,8 +234,8 @@ status_t v2p_aarch64 (tracer_t* tracer,
 
     if ( 4 == levels ) {
         get_zero_level_4kb_descriptor(tracer, pt, vaddr, info);
-        // DMSG("--ARM AArch64 PTLookup: zld_value = 0x%"PRIx64"\n",
-                // info->arm_aarch64.zld_value);
+        DMSG("--ARM AArch64 PTLookup: zld_value = 0x%"PRIx64"\n",
+                info->arm_aarch64.zld_value);
 
         if ( (info->arm_aarch64.zld_value & BIT_MASK(0,1)) != 0b11)
             goto done;
@@ -245,7 +247,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
     if ( 3 == levels) {
         if ( PS_4KB == ps ) {
             get_first_level_4kb_descriptor(tracer, pt, vaddr, info);
-            // DMSG("--ARM AArch64 4kb PTLookup: fld_value = 0x%"PRIx64"\n", info->arm_aarch64.fld_value);
+            DMSG("--ARM AArch64 4kb PTLookup: fld_value = 0x%"PRIx64"\n", info->arm_aarch64.fld_value);
 
             switch (info->arm_aarch64.fld_value & BIT_MASK(0,1)) {
                 case 0b11:
@@ -280,12 +282,12 @@ status_t v2p_aarch64 (tracer_t* tracer,
     if ( 2 == levels ) {
         if ( PS_4KB == ps ) {
             get_second_level_4kb_descriptor(tracer, pt, vaddr, info);
-            // DMSG("--ARM AArch64 4kb PTLookup: sld_value = 0x%"PRIx64"\n", info->arm_aarch64.sld_value);
+            DMSG("--ARM AArch64 4kb PTLookup: sld_value = 0x%"PRIx64"\n", info->arm_aarch64.sld_value);
 
             switch (info->arm_aarch64.sld_value & BIT_MASK(0,1)) {
                 case 0b11:
                     get_third_level_4kb_descriptor(tracer, vaddr, info);
-                    // DMSG("--ARM AArch64 4kb PTLookup: tld_value = 0x%"PRIx64"\n", info->arm_aarch64.tld_value);
+                    DMSG("--ARM AArch64 4kb PTLookup: tld_value = 0x%"PRIx64"\n", info->arm_aarch64.tld_value);
 
                     info->size = PS_4KB;
                     info->paddr = (info->arm_aarch64.tld_value & BIT_MASK(12,47)) | (vaddr & BIT_MASK(0,11));
@@ -325,7 +327,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
     }
 
 done:    
-    // DMSG("--ARM PTLookup: PA = 0x%"PRIx64"\n", info->paddr);
+    DMSG("--ARM PTLookup: PA = 0x%"PRIx64"\n", info->paddr);
     return status;
 }
 
@@ -399,7 +401,7 @@ status_t tracer_read(
         }        
 
         pfn = paddr >> tracer->page_shift;
-        // IMSG("--Reading pfn 0x%lx\n", pfn);
+        IMSG("--Reading pfn 0x%lx\n", pfn);
 
         offset = (tracer->page_size - 1) & paddr;
 
@@ -410,39 +412,49 @@ status_t tracer_read(
 
 	    char *p = NULL;
 	    size_t maplen = 0;
+        paddr_t pa = (pfn << tracer->page_shift);
         // map the physical page
-		p = core_mmu_map_rti_check((pfn << tracer->page_shift), PS_4KB, &maplen);
+		// p = core_mmu_map_rti_check((pfn << tracer->page_shift), PS_4KB, &maplen);
+        if (!core_pbuf_is(CORE_MEM_NON_SEC, pa, PS_4KB)) {
+            ret = TRACER_F;
+			goto done;
+        }
+
+    	tee_mm_entry_t* mmentry = tee_mm_alloc(&tee_mm_shm, PS_4KB);
+	    if (!mmentry) {
+            ret = TRACER_F;
+			goto done;
+	    }
+
+	    TEE_Result mres = core_mmu_map_pages(tee_mm_get_smem(mmentry), &pa,
+				 1, MEM_AREA_NSEC_SHM);
+	    if (mres) { // failed
+    		tee_mm_free(mmentry);		
+            ret = TRACER_F;
+			goto done;
+	    }
+
+	    p = (void*)tee_mm_get_smem(mmentry);
+
 		if (!p) {
 			ret = TRACER_F;
 			goto done;
         }
         
-        if (maplen != PS_4KB) {
-            DMSG("===========FAILED MAPLEN, unexpected %lu\n", maplen);
-            ret = TRACER_F;
-			goto done;
-        }
+        // if (maplen != PS_4KB) {
+        //     DMSG("===========FAILED MAPLEN, unexpected %lu\n", maplen);
+        //     ret = TRACER_F;
+		// 	goto done;
+        // }
 
         memmove((char*)buf + (addr_t)buf_offset, p + (addr_t)offset, read_len);		
-		// unmap range
-		core_mmu_map_rti_check(0, 0, &maplen);
-/*
-		char buffer = (char*)buf + (addr_t)buf_offset;
-        if (TRACER_F == tracer_read_memory(buffer, (pfn << tracer->page_shift) + (addr_t)offset, read_len)) {
-            if (ctx->pt_lookup) {
-                DMSG("===========FAILED READING MEMORY IN PFN 0x%lx rl %lu\n", (pfn << tracer->page_shift) + (addr_t)offset, read_len);
-            }
-			// DMSG("Failed reading memory!!\n");
-			ret = TRACER_F;
-			goto done;
-		} 
+        IMSG("--Map PA 0x%lx into %p and read into %p from %p/0x%lx sz %lu/%lu\n", pa, p, (char*)buf + (addr_t)buf_offset, p + (addr_t)offset, paddr, read_len, count);
 
-        if (ctx->pt_lookup) {
-            DMSG("=======Reading memory success at pfn 0x%lx\n", pfn);
-        }
-        
-        // memcpy(((char *)buf) + (addr_t)buf_offset, buffer + (addr_t)offset, read_len);
-*/
+		// unmap range
+		// core_mmu_map_rti_check(0, 0, &maplen);
+        core_mmu_unmap_pages(p, 1);
+	    tee_mm_free(mmentry);
+
         count -= read_len;
         buf_offset += read_len;
     }
@@ -511,7 +523,7 @@ static status_t init_task_kaslr_test(tracer_t* tracer, addr_t page_vaddr)
 	if (TRACER_F == tracer_read_addr(tracer, &ctx, &addr))
 		return ret;
 
-    DMSG("**RUNNING KASLR TEST - read task offset\n");
+    DMSG("**RUNNING KASLR TEST - read task offset 0x%lx\n", addr);
 
 	ctx.addr = addr;
 	if (TRACER_F == tracer_read_addr(tracer, &ctx, &addr))
@@ -528,8 +540,8 @@ static status_t init_task_kaslr_test(tracer_t* tracer, addr_t page_vaddr)
     DMSG("**RUNNING KASLR TEST - task name read with %lu %s\n", bytes_read, init_task_name);
     init_task_name[7] = '\0';
 
-    if (bytes_read != 7)
-        return ret;
+    // if (bytes_read != 7)
+    //     return ret;
 
 	if (!strncmp("swapper", init_task_name, 7))
 		ret = TRACER_S;
@@ -593,17 +605,25 @@ aarch64_pd_exit:
 }
 
 
-static status_t find_page_directories(tracer_t* tracer)
+static status_t find_page_directories(tracer_t* tracer, addr_t c)
 {
 	// NOTE: page mode is aarch64.
 	status_t rc = TRACER_F;
 	addr_t candidate;
 
+    tracer->kpgd = c;
+    if (TRACER_S == verify_linux_paging(tracer))
+    {
+        rc = TRACER_S;
+        DMSG("Found PGD candidate 0x%lx\n", candidate);        
+    }
+    return rc;
+
 	// brute force scan the memory for candidate addresses	
 	// for (candidate = 0x40000000; candidate < 0x41ffffff; candidate += PS_4KB)
 	for (candidate = 0x1000; candidate < MAX_PHYSICAL_ADDRESS; candidate += PS_4KB)
 	{
-		if (is_aarch64_pd(tracer, candidate))
+		// if (is_aarch64_pd(tracer, candidate))
 		{
             // DMSG("verify page candidate 0x%lx\n", candidate);
 			tracer->kpgd = candidate;
@@ -710,13 +730,14 @@ static TEE_Result trace_cfa(uint32_t type, TEE_Param p[TEE_NUM_PARAMS])
 	// initialize tracer by getting page table location of normal world
 	//
 	tracer_t tracer;
-	// TODO: pass from noraml world or better yet, hard code here.
-	addr_t va_init_task = p[0].value.a;
-    va_init_task = 0xffff800011cf3480; // TODO: hard coded for now
+    addr_t va_init_task = 0xffff800011cf3480; // TODO: hard coded for now
 	init_tracer(&tracer, va_init_task);
 
-    DMSG("Init tracer done\n");
-	find_page_directories(&tracer);
+    DMSG("Init tracer done %d %d\n", p[0].value.a, p[0].value.b);
+    addr_t c = p[0].value.b;    
+    c <<= 32;
+    c += p[0].value.a;
+	find_page_directories(&tracer, c);
 
     if (type != TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
                     TEE_PARAM_TYPE_NONE,

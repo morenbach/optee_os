@@ -2507,12 +2507,20 @@ void *core_mmu_map_rti_check(paddr_t pa, size_t len, size_t *mapped_len)
 	if (!core_pbuf_is(CORE_MEM_NON_SEC, pa, len))
 		return NULL;
 
-	map = find_map_by_type(MEM_AREA_RTI_CHECK_VASPACE);
-	if (!map)
-		panic("MEM_AREA_RTI_CHECK_VASPACE not found");
-	vabase = map->va;
+	tee_mm_entry_t* mmentry = tee_mm_alloc(&tee_mm_shm, len);
+	if (!mmentry) {
+		return NULL;
+	}
 
-	/*
+	TEE_Result mres = core_mmu_map_pages(tee_mm_get_smem(mmentry), &pa,
+				 1, MEM_AREA_NSEC_SHM);
+	if (mres) { // failed
+		tee_mm_free(mmentry);		
+		return NULL;
+	}
+
+	return (void*)tee_mm_get_smem(mmentry);
+/*
 	if (pa == 0) {
 		DMSG("UNMAP %#"PRIxPA":%#zx", pa, len);
 
@@ -2531,7 +2539,12 @@ void *core_mmu_map_rti_check(paddr_t pa, size_t len, size_t *mapped_len)
 
 	*mapped_len = len;
 	return (void *)vabase;
-	*/
+*/
+	map = find_map_by_type(MEM_AREA_RTI_CHECK_VASPACE);
+	if (!map)
+		panic("MEM_AREA_RTI_CHECK_VASPACE not found");
+	vabase = map->va;	
+	
 
 	if (!core_mmu_find_table(NULL, vabase, CORE_MMU_PGDIR_LEVEL - 1,
 				 &tbl_info))
@@ -2564,6 +2577,7 @@ void *core_mmu_map_rti_check(paddr_t pa, size_t len, size_t *mapped_len)
 	// }
 
 	if ((pa & CORE_MMU_PGDIR_MASK) || len < CORE_MMU_PGDIR_SIZE) {
+
 		/* Map using page granularity */
 		struct core_mmu_table_info pg_ti = {
 			.table = core_mmu_rti_check_table,
@@ -2600,6 +2614,8 @@ void *core_mmu_map_rti_check(paddr_t pa, size_t len, size_t *mapped_len)
 				   TEE_MATTR_TABLE);
 		*mapped_len = m_len;
 	} else {
+		DMSG("[ERROR] - complicated path\n");
+
 		core_mmu_set_entry(&tbl_info, idx, pa, new_attr);
 		*mapped_len = CORE_MMU_PGDIR_SIZE;
 	}
