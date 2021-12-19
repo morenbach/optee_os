@@ -1,0 +1,10 @@
+srcs-$(CFG_NS_RTI_CHECK) += tracer.c
+srcs-$(CFG_NS_RTI_CHECK) += symbols.c
+# srcs-$(CFG_NS_RTI_CHECK) += sign.c
+srcs-$(CFG_NS_RTI_CHECK) += pslist.c
+srcs-$(CFG_NS_RTI_CHECK) += page_table.c
+srcs-$(CFG_NS_RTI_CHECK) += mem_read.c
+srcs-$(CFG_NS_RTI_CHECK) += mem_dump.c
+srcs-$(CFG_NS_RTI_CHECK) += jWrite.c
+srcs-$(CFG_NS_RTI_CHECK) += civ.c
+srcs-$(CFG_NS_RTI_CHECK) += cfa.c
