@@ -8,3 +8,4 @@ srcs-$(CFG_NS_RTI_CHECK) += mem_dump.c
 srcs-$(CFG_NS_RTI_CHECK) += jWrite.c
 srcs-$(CFG_NS_RTI_CHECK) += civ.c
 srcs-$(CFG_NS_RTI_CHECK) += cfa.c
+srcs-$(CFG_NS_RTI_CHECK) += entry.c

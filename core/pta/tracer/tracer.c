@@ -156,7 +156,7 @@ static status_t find_page_directories(tracer_t* tracer)
     // return rc;
 
 	// brute force scan the memory for candidate addresses	
-	for (candidate = 0x1000; candidate < MAX_PHYSICAL_ADDRESS; candidate += PS_4KB)
+	for (candidate = 0x1000; candidate < MAX_PHYSICAL_ADDRESS; candidate += TRACER_4KB)
 	{        
 		// if (is_aarch64_pd(tracer, candidate))
 		{
@@ -173,52 +173,30 @@ static status_t find_page_directories(tracer_t* tracer)
 }
 
 void create_tracer(void) {
-	// DMSG("Trace CFA has been called\n");
-
 	// initialize tracer by getting page table location of normal world
 	//
 	init_symbols(&g_tracer);
 
-    // DMSG("Init tracer done\n");
-    // addr_t c = p[0].value.b;    
-    // c <<= 32;
-    // c += p[0].value.a;
-	// find_page_directories(&tracer, c);
 	if (find_page_directories(&g_tracer) == TRACER_F) {
         return;
     }
 
-    // Run a simple process list forensic for a sanity check
-    //
-    // process_list(&tracer);
-
-    // Run simple CIV
-    //
-    // civ(&tracer);
-
-    // Run memory dump
-    //
-    // mem_dump(&tracer, 3148041);
-
-    // Run CFA
-    //
-    // cfa(&tracer, 3148041);
-
-    // if (type != TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
-    //                 TEE_PARAM_TYPE_NONE,
-    //                 TEE_PARAM_TYPE_NONE,
-    //                 TEE_PARAM_TYPE_NONE)) {
-    //     return TEE_SUCCESS;
-    // }
-
-	// return TEE_SUCCESS;
+	g_tracer.initialized = true;
 }
 
 
-void trace_cfa(int req_pid, uint64_t* stack_frames, int num_stack_frames, char* buffer, unsigned int buflen) {
-    cfa(&g_tracer, req_pid, stack_frames, num_stack_frames, buffer, buflen);    
+status_t trace_cfa(int req_pid, uint64_t* stack_frames, int num_stack_frames, char* buffer, unsigned int buflen) {
+    return cfa(&g_tracer, req_pid, stack_frames, num_stack_frames, buffer, buflen);    
 }
 
-void trace_civ(char* buffer, unsigned int buflen) {
-    civ(&g_tracer, buffer, buflen);
+status_t trace_civ(char* buffer, unsigned int buflen) {
+	if (!g_tracer.initialized) {
+		return TRACER_F;
+	}
+	
+    return civ(&g_tracer, buffer, buflen);
+}
+
+status_t trace_pslist(void) {
+	return process_list(&g_tracer);
 }

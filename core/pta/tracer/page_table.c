@@ -153,10 +153,10 @@ status_t v2p_aarch64 (tracer_t* tracer,
         va_width = 64 - tracer->arm64.t0sz;
     }
 
-    if ( PS_4KB == ps )
+    if ( TRACER_4KB == ps )
         // levels = va_width == 39 ? 3 : 4;
         levels = 4;
-    else if ( PS_64KB == ps )
+    else if ( TRACER_64KB == ps )
         levels = va_width == 42 ? 2 : 3;
     else {
         IMSG("16KB granule size ARM64 lookups are not yet implemented\n");
@@ -176,7 +176,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
     }
 
     if ( 3 == levels) {
-        if ( PS_4KB == ps ) {
+        if ( TRACER_4KB == ps ) {
             get_first_level_4kb_descriptor(tracer, pt, vaddr, info);
             // DMSG("--ARM AArch64 4kb PTLookup: fld_value = 0x%"PRIx64"\n", info->arm_aarch64.fld_value);
 
@@ -186,7 +186,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
                     --levels;
                     break;
                 case 0b01:
-                    info->size = PS_1GB;
+                    info->size = TRACER_1GB;
                     info->paddr = (info->arm_aarch64.fld_value & BIT_MASK(30,47)) | (vaddr & BIT_MASK(0,29));
                     status = TRACER_S;
                     goto done;
@@ -195,7 +195,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
             }
 
         }
-        if ( PS_64KB == ps ) {
+        if ( TRACER_64KB == ps ) {
             get_first_level_64kb_descriptor(tracer, pt, vaddr, info);
             // DMSG("--ARM AArch64 64kb PTLookup: fld_value = 0x%"PRIx64"\n", info->arm_aarch64.fld_value);
 
@@ -211,7 +211,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
     }
 
     if ( 2 == levels ) {
-        if ( PS_4KB == ps ) {
+        if ( TRACER_4KB == ps ) {
             get_second_level_4kb_descriptor(tracer, pt, vaddr, info);
             // DMSG("--ARM AArch64 4kb PTLookup: sld_value = 0x%"PRIx64"\n", info->arm_aarch64.sld_value);
 
@@ -220,12 +220,12 @@ status_t v2p_aarch64 (tracer_t* tracer,
                     get_third_level_4kb_descriptor(tracer, vaddr, info);
                     // DMSG("--ARM AArch64 4kb PTLookup: tld_value = 0x%"PRIx64"\n", info->arm_aarch64.tld_value);
 
-                    info->size = PS_4KB;
+                    info->size = TRACER_4KB;
                     info->paddr = (info->arm_aarch64.tld_value & BIT_MASK(12,47)) | (vaddr & BIT_MASK(0,11));
                     status = TRACER_S;
                     break;
                 case 0b01:
-                    info->size = PS_2MB;
+                    info->size = TRACER_2MB;
                     info->paddr = (info->arm_aarch64.sld_value & BIT_MASK(21,47)) | (vaddr & BIT_MASK(0,20));
                     status = TRACER_S;
                     goto done;
@@ -233,7 +233,7 @@ status_t v2p_aarch64 (tracer_t* tracer,
                     goto done;
             }
         }
-        if (PS_64KB == ps ) {
+        if (TRACER_64KB == ps ) {
             get_second_level_64kb_descriptor(tracer, pt, vaddr, info);
             // DMSG("--ARM AArch64 64kb PTLookup: sld_value = 0x%"PRIx64"\n", info->arm_aarch64.sld_value);
 
@@ -242,12 +242,12 @@ status_t v2p_aarch64 (tracer_t* tracer,
                     get_third_level_64kb_descriptor(tracer, vaddr, info);
                     // DMSG("--ARM AArch64 64kb PTLookup: tld_value = 0x%"PRIx64"\n", info->arm_aarch64.tld_value);
 
-                    info->size = PS_4KB;
+                    info->size = TRACER_4KB;
                     info->paddr = (info->arm_aarch64.tld_value & BIT_MASK(16,47)) | (vaddr & BIT_MASK(0,15));
                     status = TRACER_S;
                     goto done;
                 case 0b01:
-                    info->size = PS_512MB;
+                    info->size = TRACER_512MB;
                     info->paddr = (info->arm_aarch64.sld_value & BIT_MASK(29,47)) | (vaddr & BIT_MASK(0,28));
                     status = TRACER_S;
                     goto done;

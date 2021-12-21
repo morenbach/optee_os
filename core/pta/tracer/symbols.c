@@ -2,24 +2,25 @@
 #include "symbols.h"
 
 status_t init_symbols(tracer_t* tracer) {
-	// init symbols/addresses information.
-    // TODO: hard coded for now for security reasons. Need to come up with compiler flags to make it easier when deploying.
-    addr_t va_init_task = 0xffff8000117c2180;
+	// init symbols/addresses information; hard coded for security reasons.
+    // TODO: Need to come up with compiler flags to make it easier when deploying.
+    //
+    addr_t va_init_task = 18446603336519988352;
 
 	tracer->init_task = canonical_addr(va_init_task);	
 	tracer->os_data.init_task_fixed = tracer->init_task;
 
 	tracer->page_shift = 12;
-	tracer->page_size = PS_4KB;
-    tracer->arm64.tg0 = PS_4KB;
-    tracer->arm64.tg1 = PS_4KB;
+	tracer->page_size = TRACER_4KB;
+    tracer->arm64.tg0 = TRACER_4KB;
+    tracer->arm64.tg1 = TRACER_4KB;
     tracer->arm64.t0sz = 16;
     tracer->arm64.t1sz = 16;
 
-    tracer->os_data.pid_offset = 1152;
-    tracer->os_data.mm_offset = 976;
-    tracer->os_data.tasks_offset = 896;
-    tracer->os_data.name_offset = 1592;
+    tracer->os_data.pid_offset = 1096;
+    tracer->os_data.mm_offset = 912;
+    tracer->os_data.tasks_offset = 832;
+    tracer->os_data.name_offset = 1544;
     tracer->os_data.pgd_offset = 64; 
 
     tracer->mm_data.mmap = 0; 

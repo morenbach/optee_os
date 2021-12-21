@@ -1,5 +1,11 @@
 #include "tracer.h"
 
+status_t dump_vma(tracer_t* tracer, addr_t start_addr,addr_t end_addr, addr_t process_gpd);
+status_t dump_memory_map(tracer_t* tracer, addr_t process, addr_t memory_map);
+status_t mem_dump_process(tracer_t* tracer, addr_t process, pid_t pid);
+
+
+
 status_t dump_vma(tracer_t* tracer, addr_t start_addr,addr_t end_addr, addr_t process_gpd) {
     char page_content[0x1000] = {0};
     start_addr &= ~0xfff;
@@ -29,7 +35,7 @@ status_t dump_vma(tracer_t* tracer, addr_t start_addr,addr_t end_addr, addr_t pr
     return TRACER_S;
 }
 
-status_t dump_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t memory_map) {
+status_t dump_memory_map(tracer_t* tracer, addr_t process, addr_t memory_map) {
     addr_t vm_area_struct_addr = 0;
     addr_t process_gpd;
 
@@ -77,6 +83,7 @@ status_t dump_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t mem
 status_t mem_dump_process(tracer_t* tracer, addr_t process, pid_t pid) {
     addr_t memory_map = 0;
     status_t result;
+    
 
     // get memory map for the process
     access_context_t ctx = { .pt = tracer->kpgd, .addr = process + tracer->os_data.mm_offset, .pt_lookup = true };
@@ -86,7 +93,7 @@ status_t mem_dump_process(tracer_t* tracer, addr_t process, pid_t pid) {
         return TRACER_F;
     }
 
-    result = dump_memory_map(tracer, process, pid, memory_map);
+    result = dump_memory_map(tracer, process, memory_map);
     if (result != TRACER_S){
         return result;
     }

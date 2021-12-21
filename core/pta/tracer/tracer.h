@@ -28,17 +28,10 @@ extern "C" {
 
 #define PTA_TRACER_NAME		"tracer.ta"
 
-/*
- * Trace CFA, TODO: document me
- *
- * [out]     memref[0]        Array of device UUIDs
- *
- * Return codes:
- * TEE_SUCCESS - Invoke command success
- * TEE_ERROR_BAD_PARAMETERS - Incorrect input param
- * TEE_ERROR_SHORT_BUFFER - Output buffer size less than required
- */
-#define TRACER_CMD_CFA	0x0 /* after tee-supplicant run */
+#define TRACER_CMD_CREATE  0x0
+#define TRACER_CMD_CIV  0x1
+#define TRACER_CMD_CFA  0x2
+#define TRACER_CMD_PSLIST  0x3
 
 #define GET_BIT(reg, bit) (!!(reg & (1ULL<<bit)))
 #define BIT_MASK(a, b) (((unsigned long long) -1 >> (63 - (b))) & ~((1ULL << (a)) - 1))
@@ -62,18 +55,18 @@ typedef enum status {
 } status_t;
 
 typedef enum page_size {
-    PS_UNKNOWN  = 0ULL,         
-    PS_1KB      = 0x400ULL,     
-    PS_4KB      = 0x1000ULL,    
-    PS_16KB     = 0x4000ULL,    
-    PS_64KB     = 0x10000ULL,   
-    PS_1MB      = 0x100000ULL,  
-    PS_2MB      = 0x200000ULL,  
-    PS_4MB      = 0x400000ULL,  
-    PS_16MB     = 0x1000000ULL, 
-    PS_32MB     = 0x2000000ULL, 
-    PS_512MB    = 0x20000000ULL,  
-    PS_1GB      = 0x40000000ULL,  
+    TRACER_UNKNOWN  = 0ULL,         
+    TRACER_1KB      = 0x400ULL,     
+    TRACER_4KB      = 0x1000ULL,    
+    TRACER_16KB     = 0x4000ULL,    
+    TRACER_64KB     = 0x10000ULL,   
+    TRACER_1MB      = 0x100000ULL,  
+    TRACER_2MB      = 0x200000ULL,  
+    TRACER_4MB      = 0x400000ULL,  
+    TRACER_16MB     = 0x1000000ULL, 
+    TRACER_32MB     = 0x2000000ULL, 
+    TRACER_512MB    = 0x20000000ULL,  
+    TRACER_1GB      = 0x40000000ULL,  
 } page_size_t;
 
 
@@ -193,6 +186,7 @@ typedef struct {
 
 typedef struct
 {    
+    bool initialized;
 	addr_t kpgd;
 	addr_t init_task;
 	uint32_t page_shift;
@@ -292,7 +286,7 @@ typedef struct page_info {
 #define sym_cache_del(...) TRACER_F
 
 #define CANONCAL_ADDR GET_BIT(va, 47) ? (va | 0xffff000000000000) : va
-#define PD_ENTRIES (PS_4KB / sizeof(uint64_t))
+#define PD_ENTRIES (TRACER_4KB / sizeof(uint64_t))
 
 static inline addr_t
 canonical_addr(addr_t va)
@@ -332,6 +326,8 @@ status_t tracer_read_64_pa(
         addr_t paddr,
         uint64_t *value);
 
+char* tracer_read_str(tracer_t* tracer, const access_context_t *ctx);
+
 status_t tracer_read_addr(tracer_t* tracer, const access_context_t *ctx, addr_t *value);
 
 status_t pagetable_lookup(tracer_t* tracer, addr_t pt, addr_t vaddr, addr_t *paddr);
@@ -344,8 +340,9 @@ status_t cfa(tracer_t* tracer, int req_pid, uint64_t* stack_frames, int num_stac
 status_t mem_dump(tracer_t* tracer, pid_t req_pid);
 
 void create_tracer(void);
-void trace_cfa(int req_pid, uint64_t* stack_frames, int num_stack_frames, char* buffer, unsigned int buflen);
-void trace_civ(char* buffer, unsigned int buflen);
+status_t trace_cfa(int req_pid, uint64_t* stack_frames, int num_stack_frames, char* buffer, unsigned int buflen);
+status_t trace_civ(char* buffer, unsigned int buflen);
+status_t trace_pslist(void);
 
 #ifdef __cplusplus
 }

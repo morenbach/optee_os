@@ -58,6 +58,52 @@ status_t tracer_read_16bit(
 	return tracer_read(tracer, ctx, sizeof(uint16_t), value, NULL);
 }
 
+
+char* tracer_read_str(tracer_t* tracer, const access_context_t *ctx) {
+    access_context_t _ctx = *ctx;
+    addr_t len = 0;
+    uint8_t buf[TRACER_4KB];
+    size_t bytes_read;
+    bool read_more = 1;
+    char *ret = NULL;
+
+    do
+    {
+        size_t offset = _ctx.addr & BIT_MASK(0, 11);
+        size_t read_size = TRACER_4KB - offset;
+
+        if (TRACER_F == tracer_read(tracer, &_ctx, read_size, (void *)&buf, &bytes_read) && !bytes_read) {
+            return ret;
+        }
+
+        size_t read_len = 0;
+        for (read_len = 0; read_len < bytes_read; read_len++)
+        {
+            if (buf[read_len] == '\0')
+            {
+                read_more = 0;
+                break;
+            }
+        }
+
+        /*
+         * Realloc, tack on the '\0' in case of errors and
+         * get ready to read the next page.
+         */
+        char *_ret = realloc(ret, len + read_len + 1);
+        if (!_ret)
+            return ret;
+
+        ret = _ret;
+        memcpy(&ret[len], &buf, read_len);
+        len += read_len;
+        ret[len] = '\0';
+        _ctx.addr += offset;
+    } while (read_more);
+
+    return ret;
+}
+
 /*
 bool valid_region(paddr_t pa, size_t len) {       
     if (pa > 0x80000000 && pa + len < 0x87ffffff) {
@@ -99,7 +145,7 @@ bool valid_region(paddr_t pa, size_t len) {
 status_t tracer_read(
         tracer_t* tracer,
         const access_context_t *ctx,
-        size_t count, // bytes
+        size_t count, 
         void *buf,
         size_t *bytes_read)
 {
@@ -107,20 +153,11 @@ status_t tracer_read(
     size_t buf_offset = 0;
     addr_t start_addr;
     addr_t paddr;
-    // addr_t naddr;
     addr_t pfn;
     addr_t offset;
     addr_t pt;
-    int mem_device = -1;
-
-    // page_mode_t pm;
-    // addr_t npt;
-    // page_mode_t npm;
 
     pt = ctx->pt;
-    // pm = ctx->pm;
-    // npt = ctx->npt;
-    // npm = ctx->npm;
     start_addr = ctx->addr;    
     
     while (count > 0)
@@ -131,13 +168,11 @@ status_t tracer_read(
 			if (TRACER_S != pagetable_lookup(tracer, pt, start_addr + buf_offset, &paddr)) {
 				goto done;	
 			}
-            // IMSG("--[INFO] v2p 0x%lx -> 0x%lx\n", (start_addr + buf_offset), paddr);
 		} else {
             paddr = start_addr + buf_offset;
         }        
 
         pfn = paddr >> tracer->page_shift;
-        // IMSG("--Reading pfn 0x%lx\n", pfn);
 
         offset = (tracer->page_size - 1) & paddr;
 
@@ -148,57 +183,14 @@ status_t tracer_read(
         }
 
 	    char *p = NULL;
-	    // size_t maplen = 0;
         paddr_t pa = (pfn << tracer->page_shift);
-/*        
-        if (!valid_region(pa, read_len)) {
-            goto done;
-        }
-
-
-        int result;
-        do {
-            result = open(MEMORY_DEVICE, O_RDONLY);
-        } while (result == -1 && errno == EINTR);
-        if (result == -1) goto done;
-
-        mem_device = result;
-
-        unsigned char   *d = (unsigned char*)buf + (addr_t)buf_offset;
-        off_t            o = (off_t)(pa + (addr_t)offset);
-        size_t           n = read_len;
-        ssize_t          r;
-
-        while (n) {
-            r = pread(mem_device, d, n, o);
-            if (r == (ssize_t)n) {
-                break;
-            }
-            else {
-                if (r >= (ssize_t)0) {
-                    d += r;
-                    n -= r;
-                    o += r;
-                    continue;
-                }
-                if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) goto done;
-            }
-        }
-        
-        close(mem_device);
-        mem_device = -1;
-
-*/
-
-
         // map the physical page
-		// p = core_mmu_map_rti_check((pfn << tracer->page_shift), PS_4KB, &maplen);
-        if (!core_pbuf_is(CORE_MEM_NON_SEC, pa, PS_4KB)) {
+        if (!core_pbuf_is(CORE_MEM_NON_SEC, pa, TRACER_4KB)) {
             ret = TRACER_F;
 			goto done;
         }
 
-    	tee_mm_entry_t* mmentry = tee_mm_alloc(&tee_mm_shm, PS_4KB);
+    	tee_mm_entry_t* mmentry = tee_mm_alloc(&tee_mm_shm, TRACER_4KB);
 	    if (!mmentry) {
             ret = TRACER_F;
 			goto done;
@@ -217,19 +209,11 @@ status_t tracer_read(
 		if (!p) {
 			ret = TRACER_F;
 			goto done;
-        }
-        
-        // if (maplen != PS_4KB) {
-        //     DMSG("===========FAILED MAPLEN, unexpected %lu\n", maplen);
-        //     ret = TRACER_F;
-		// 	goto done;
-        // }
+        }            
 
         memmove((char*)buf + (addr_t)buf_offset, p + (addr_t)offset, read_len);		
-        // IMSG("--Map PA 0x%lx into %p and read into %p from %p/0x%lx sz %lu/%lu\n", pa, p, (char*)buf + (addr_t)buf_offset, p + (addr_t)offset, paddr, read_len, count);
 
 		// unmap range
-		// core_mmu_map_rti_check(0, 0, &maplen);
         core_mmu_unmap_pages((vaddr_t)p, 1);
 	    tee_mm_free(mmentry);
 
@@ -242,10 +226,6 @@ status_t tracer_read(
 done:
     if (bytes_read)
         *bytes_read = buf_offset;
-    
-    // if (mem_device != -1) {
-    //     close(mem_device);
-    // }
 
     return ret;
 }

@@ -26,10 +26,8 @@ const protection_t linux_protect[PROTECTION_FLAGS] =
 };
 
 TEE_Result hash_page (const unsigned char* page_content, unsigned int page_length, unsigned char* hash);
-status_t hash_vma(tracer_t* tracer, addr_t start_addr,addr_t end_addr, const char* path, addr_t process_gpd);
+status_t hash_vma(tracer_t* tracer, addr_t start_addr,addr_t end_addr, addr_t process_gpd);
 status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t memory_map);
-
-
 
 TEE_Result hash_page (const unsigned char* page_content, unsigned int page_length, unsigned char* hash)
 {    
@@ -64,7 +62,7 @@ out:
 	return res;
 }
 
-status_t hash_vma(tracer_t* tracer, addr_t start_addr,addr_t end_addr, const char* path, addr_t process_gpd) {
+status_t hash_vma(tracer_t* tracer, addr_t start_addr,addr_t end_addr, addr_t process_gpd) {
     unsigned char page_content[0x1000] = {0};
     // page_entry* page_node = NULL;
     unsigned char page_hash[SHA256_DIGEST_LENGTH] = {0};
@@ -122,7 +120,7 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
     addr_t vm_area_struct_addr = 0;
     addr_t vm_file_addr = 0;
     addr_t dentry_path = 0;
-    char path[256];
+    // char path[256];
     uint32_t dname_len;
     addr_t brk;
     addr_t start_brk;
@@ -198,13 +196,13 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
         addr_t vma_end;
         addr_t vma_flags;
         size_t bytes_read;
-        memset(path, 0, 256);
+        // memset(path, 0, 256);
 
         ctx.addr = vm_area_struct_addr + tracer->vm_area_data.vm_flags;
         if(TRACER_F == tracer_read_addr(tracer, &ctx, &vma_flags)){
             return TRACER_F;
         }  
-
+        
         ctx.addr = vm_area_struct_addr + tracer->vm_area_data.vm_start;
         if(TRACER_F == tracer_read_addr(tracer, &ctx, &vma_start)){
             return TRACER_F;
@@ -214,16 +212,6 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
         if(TRACER_F == tracer_read_addr(tracer, &ctx, &vma_end)){
             return TRACER_F;
         }  
-
-        // char protection_flags[PROTECTION_FLAGS+1] = {0};
-        // for (int i = 0; i < PROTECTION_FLAGS; i++)
-        // {
-        //     protection_flags[i] = '-';
-        //     if ((vma_flags) & linux_protect[i].mask)
-        //     { 	
-        //         protection_flags[i] = linux_protect[i].name;
-        //     }
-        // }
 
         ctx.addr = vm_area_struct_addr + tracer->vm_area_data.vm_file;
         if(TRACER_F == tracer_read_addr(tracer, &ctx, &vm_file_addr)){
@@ -235,27 +223,33 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
             goto next;
         }
 
-        ctx.addr = dentry_path + tracer->dentry_data.d_name + tracer->qstr_data.len;
-        if(TRACER_F == tracer_read_32bit(tracer, &ctx, &dname_len)) {
-            goto next;
-        }
+        // ctx.addr = dentry_path + tracer->dentry_data.d_name + tracer->qstr_data.len;
+        // if(TRACER_F == tracer_read_32bit(tracer, &ctx, &dname_len)) {
+        //     goto next;
+        // }
+
+        // DMSG("H6\n");
 
         ctx.addr = dentry_path + tracer->dentry_data.d_name + tracer->qstr_data.name + 16;
-        if(TRACER_F == tracer_read(tracer, &ctx, dname_len, path, &bytes_read) || bytes_read != dname_len) {
+        char* path = tracer_read_str(tracer, &ctx);
+        if (NULL == path) {
+        // if(TRACER_F == tracer_read(tracer, &ctx, dname_len, path, &bytes_read) || bytes_read != dname_len) {
             goto next;
-        }
+        }        
 
-        path[dname_len+1] = '\0';
+        // path[dname_len+1] = '\0';
 
         struct paths_set* test;
         HASH_FIND_STR(visited_paths, path, test);
         if (test) {
+            free(path);
             goto next; // already visited
         }
 
         // otherwise, add to visited paths
         test = (struct paths_set*)malloc(sizeof(struct paths_set));
         if (!test) {
+            free(path);
             return TRACER_F; // out of memory
         }
 
@@ -267,10 +261,12 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
             jwObj_string("name", path);
             jwObj_array("hashes");
 
-                hash_vma(tracer, vma_start, vma_end, path, process_gpd);
+                hash_vma(tracer, vma_start, vma_end, process_gpd);
 
             jwEnd(); // end hashes array
         jwEnd();
+
+        free(path);
 
 next:
         /* follow the next pointer */
@@ -283,7 +279,7 @@ next:
         //
         if(vm_area_struct_addr == 0) {
             return TRACER_S; 
-        }  
+        }
     }       
     
     return TRACER_S;
@@ -297,7 +293,7 @@ status_t civ_process(tracer_t* tracer, addr_t process, pid_t pid) {
     access_context_t ctx = { .pt = tracer->kpgd, .addr = process + tracer->os_data.mm_offset, .pt_lookup = true };
     result = tracer_read_addr(tracer, &ctx, &memory_map);        
     if(result == TRACER_F || memory_map == 0){
-        // DMSG("cannot retrieve memory map for process %d\n", pid);
+        DMSG("cannot retrieve memory map for process %d\n", pid);
         return TRACER_F;
     }
 
@@ -352,11 +348,13 @@ status_t civ(tracer_t* tracer, char* buffer, unsigned int buflen) {
         } 
 
         /* print out the process name */
-        // IMSG("[INFO] [%5d] %s (struct addr:%"PRIx64")\n", pid, procname, current_process);
+        IMSG("[INFO] [%5d] %s (struct addr:%"PRIx64")\n", pid, procname, current_process);
 
         /* run civ for the process */
         // if (strcmp(procname, "bash") == 0)
-        civ_process(tracer, current_process, pid);
+        if (civ_process(tracer, current_process, pid) == TRACER_S) {            
+            break;
+        }        
 
         /* follow the next pointer */
         cur_list_entry = next_list_entry;
@@ -370,6 +368,8 @@ status_t civ(tracer_t* tracer, char* buffer, unsigned int buflen) {
             break;
         }
     }
+
+    IMSG("[INFO] DONE\n");
 
     if (jwClose() != JWRITE_OK) {
         return TRACER_F;
