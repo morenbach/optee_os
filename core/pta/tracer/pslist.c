@@ -37,19 +37,9 @@ status_t process_list(tracer_t* tracer) {
             DMSG("Failed to find procname\n");
             return TRACER_F;
         } 
-        // procname = tracer_read_str_va(tracer, current_process + tracer->os_data.name_offset, 0);
-
-        // if (!procname) {
-        //     DMSG("Failed to find procname\n");
-        //     return TRACER_F;
-        // }
 
         /* print out the process name */
         IMSG("[INFO] [%5d] %s (struct addr:%"PRIx64")\n", pid, procname, current_process);
-        // if (procname) {
-        //     free(procname);
-        //     procname = NULL;
-        // }
 
         /* follow the next pointer */
         cur_list_entry = next_list_entry;

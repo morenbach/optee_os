@@ -5,7 +5,7 @@ status_t init_symbols(tracer_t* tracer) {
 	// init symbols/addresses information; hard coded for security reasons.
     // TODO: Need to come up with compiler flags to make it easier when deploying.
     //
-    addr_t va_init_task = 18446603336519988352;
+    addr_t va_init_task = 0xffff800011cf3480;
 
 	tracer->init_task = canonical_addr(va_init_task);	
 	tracer->os_data.init_task_fixed = tracer->init_task;

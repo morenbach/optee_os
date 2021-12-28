@@ -30,15 +30,17 @@ status_t hash_vma(tracer_t* tracer, addr_t start_addr,addr_t end_addr, addr_t pr
 status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t memory_map);
 
 TEE_Result hash_page (const unsigned char* page_content, unsigned int page_length, unsigned char* hash)
-{    
-    // mbedtls_sha256_context ctx;
+{   
+    TEE_Result res = TEE_SUCCESS; 
+#ifdef LINUX_BUILD
+    mbedtls_sha256_context ctx;
  
-    // mbedtls_sha256_init(&ctx);
-    // mbedtls_sha256_starts(&ctx, 0); /* SHA-256, not 224 */
-    // mbedtls_sha256_update(&ctx, page_content, page_length);
-    // mbedtls_sha256_finish(&ctx, hash);
-
-	TEE_Result res = TEE_SUCCESS;
+    mbedtls_sha256_init(&ctx);
+    mbedtls_sha256_starts(&ctx, 0); /* SHA-256, not 224 */
+    mbedtls_sha256_update(&ctx, page_content, page_length);
+    mbedtls_sha256_finish(&ctx, hash);
+    return res;
+#else // OP-TEE BUILD
 	void *ctx = NULL;
 
 	// if (!tag || *tag_len < TEE_SHA256_HASH_SIZE) {
@@ -60,6 +62,8 @@ TEE_Result hash_page (const unsigned char* page_content, unsigned int page_lengt
 out:
 	crypto_hash_free_ctx(ctx);
 	return res;
+
+#endif
 }
 
 status_t hash_vma(tracer_t* tracer, addr_t start_addr,addr_t end_addr, addr_t process_gpd) {
@@ -121,7 +125,7 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
     addr_t vm_file_addr = 0;
     addr_t dentry_path = 0;
     // char path[256];
-    uint32_t dname_len;
+    // uint32_t dname_len;
     addr_t brk;
     addr_t start_brk;
     addr_t start_stack;
@@ -190,12 +194,14 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
     // printf("Stack: [Start: 0x%lx]\n",start_stack);
 
     // vm_area_struct_head_addr = vm_area_struct_addr;
+    //
+    int vis_paths = 0;
     
     while(1) {
         addr_t vma_start;
         addr_t vma_end;
         addr_t vma_flags;
-        size_t bytes_read;
+        // size_t bytes_read;
         // memset(path, 0, 256);
 
         ctx.addr = vm_area_struct_addr + tracer->vm_area_data.vm_flags;
@@ -213,6 +219,7 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
             return TRACER_F;
         }  
 
+
         ctx.addr = vm_area_struct_addr + tracer->vm_area_data.vm_file;
         if(TRACER_F == tracer_read_addr(tracer, &ctx, &vm_file_addr)){
             goto next;
@@ -228,8 +235,6 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
         //     goto next;
         // }
 
-        // DMSG("H6\n");
-
         ctx.addr = dentry_path + tracer->dentry_data.d_name + tracer->qstr_data.name + 16;
         char* path = tracer_read_str(tracer, &ctx);
         if (NULL == path) {
@@ -238,6 +243,7 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
         }        
 
         // path[dname_len+1] = '\0';
+	    // DMSG("[%s]: 0x%lx - 0x%lx\n", path, vma_start, vma_end);
 
         struct paths_set* test;
         HASH_FIND_STR(visited_paths, path, test);
@@ -245,6 +251,18 @@ status_t analyze_memory_map(tracer_t* tracer, addr_t process, pid_t pid, addr_t 
             free(path);
             goto next; // already visited
         }
+
+        if (strcmp(path, "") == 0) {
+            free(path);
+            goto next;
+        }
+
+        vis_paths++;
+
+        if (vis_paths > 100) {
+            free(path);
+            break;
+        }        
 
         // otherwise, add to visited paths
         test = (struct paths_set*)malloc(sizeof(struct paths_set));
@@ -293,7 +311,7 @@ status_t civ_process(tracer_t* tracer, addr_t process, pid_t pid) {
     access_context_t ctx = { .pt = tracer->kpgd, .addr = process + tracer->os_data.mm_offset, .pt_lookup = true };
     result = tracer_read_addr(tracer, &ctx, &memory_map);        
     if(result == TRACER_F || memory_map == 0){
-        DMSG("cannot retrieve memory map for process %d\n", pid);
+        // DMSG("cannot retrieve memory map for process %d\n", pid);
         return TRACER_F;
     }
 
@@ -307,6 +325,7 @@ status_t civ_process(tracer_t* tracer, addr_t process, pid_t pid) {
 
 status_t civ(tracer_t* tracer, char* buffer, unsigned int buflen) {
     /* go over all processes, similar to pslist's code */
+    status_t res = TRACER_S;
     char procname[16];
     pid_t pid = 0;
     addr_t current_process = 0;
@@ -344,23 +363,25 @@ status_t civ(tracer_t* tracer, char* buffer, unsigned int buflen) {
         size_t bytes_read;    
         if (TRACER_F == tracer_read(tracer, &ctx, 16, procname, &bytes_read)) {
             DMSG("Failed to find procname\n");
+            res = TRACER_F;
             goto cleanup;
         } 
 
         /* print out the process name */
-        IMSG("[INFO] [%5d] %s (struct addr:%"PRIx64")\n", pid, procname, current_process);
+        // IMSG("[INFO] [%5d] %s (struct addr:%"PRIx64")\n", pid, procname, current_process);
 
         /* run civ for the process */
-        // if (strcmp(procname, "bash") == 0)
-        if (civ_process(tracer, current_process, pid) == TRACER_S) {            
-            break;
-        }        
+        //if (civ_process(tracer, current_process, pid) == TRACER_S) {            
+        //    break;
+        //}
+	    civ_process(tracer, current_process, pid);        
 
         /* follow the next pointer */
         cur_list_entry = next_list_entry;
         ctx.addr = cur_list_entry;
         if (TRACER_F == tracer_read_addr(tracer, &ctx, &next_list_entry)) {
             DMSG("Failed to read next pointer in loop at %"PRIx64"\n", cur_list_entry);
+            res = TRACER_F;
             goto cleanup;
         }
 
@@ -369,15 +390,8 @@ status_t civ(tracer_t* tracer, char* buffer, unsigned int buflen) {
         }
     }
 
-    IMSG("[INFO] DONE\n");
-
-    if (jwClose() != JWRITE_OK) {
-        return TRACER_F;
-    }
-
-    return TRACER_S;
-    
 cleanup:
+    // IMSG("[INFO] DONE\n");
 
     /* free the hash table contents */
     HASH_ITER(hh, visited_paths, it, tmp) {
@@ -385,6 +399,9 @@ cleanup:
       free(it);
     }
 
-    jwClose();
-    return TRACER_F;
+    if (jwClose() != JWRITE_OK) {
+        return TRACER_F;
+    }
+
+    return res;
 }

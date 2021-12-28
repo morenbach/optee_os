@@ -1,6 +1,27 @@
 #ifndef __TRACER_OPTEE_H
 #define __TRACER_OPTEE_H
 
+#ifdef LINUX_BUILD
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <malloc.h>
+#include <stdbool.h>
+#include <inttypes.h>
+#include <mbedtls/platform.h>
+#include <mbedtls/sha256.h>
+#include <mbedtls/ecdsa.h>
+
+typedef uint32_t TEE_Result;
+typedef uintptr_t paddr_t;
+#define TEE_SUCCESS                       0x00000000
+#define DMSG printf
+#define IMSG printf
+
+#else // OP-TEE BUILD
+
 #include <compiler.h>
 #include <stdio.h>
 #include <trace.h>
@@ -24,24 +45,7 @@
 
 #include <crypto/crypto.h>
 
-// #include <stdio.h>
-// #include <stdlib.h>
-// #include <string.h>
-// #include <stdint.h>
-// #include <malloc.h>
-// #include <stdbool.h>
-// #include <inttypes.h>
-// #include <mbedtls/platform.h>
-// #include <mbedtls/sha256.h>
-// #include <mbedtls/ecdsa.h>
-
-
-// typedef uint32_t TEE_Result;
-// typedef uintptr_t paddr_t;
-// #define TEE_SUCCESS                       0x00000000
-// #define DMSG printf
-// #define IMSG printf
-
 #endif
 
 
+#endif //__TRACER_OPTEE_H

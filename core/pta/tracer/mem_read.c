@@ -1,29 +1,50 @@
 #include "tracer.h"
-// #include <unistd.h>
-// #include <fcntl.h>
-// #include <errno.h>
 
-// #define MEMORY_DEVICE  ("/dev/fmem")
+#ifdef LINUX_BUILD
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 
-// status_t tracer_read_memory(void* dst_buffer, addr_t src_paddr, size_t count) {	
-// 	size_t pos = 0;
-// 	void *p = NULL;
-// 	size_t len = 0;
-   
-// 	while (pos < count) {
-// 		// map physical memory to our address space so we can memcpy in a sec        
-// 		p = core_mmu_map_rti_check(src_paddr + pos, count - pos, &len);
-// 		if (!p)
-// 			return TRACER_F;
-                    
-//         memmove(dst_buffer, p, len);
-// 		pos += len;
-// 		// unmap range
-// 		core_mmu_map_rti_check(0, 0, &len);
-// 	}
+#define MEMORY_DEVICE  ("/dev/fmem")
 
-// 	return TRACER_S;
-// }
+// TODO: get regions defined in the symbols based on System RAM map in Linux
+bool valid_region(paddr_t pa, size_t len) {       
+    if (pa > 0x80000000 && pa + len < 0x87ffffff) {
+        return true;
+    }
+
+    if (pa > 0x88001000 && pa + len < 0xf52a3fff) {
+        return true;
+    }
+
+    if (pa > 0xf5570000 && pa + len < 0xf5a5ffff) {
+        return true;
+    }
+
+    if (pa > 0xf5c40000 && pa + len < 0xf5c5ffff) {
+        return true;
+    }
+
+    if (pa > 0xf5f80000 && pa + len < 0xfaf4ffff) {
+        return true;
+    }
+
+    if (pa > 0xfaf90000 && pa + len < 0xfaf9ffff) {
+        return true;
+    }
+
+    if (pa > 0xfaff0000 && pa + len < 0xfeffffff) {
+        return true;
+    }
+
+    if (pa > 0x100000000 && pa + len < 0x47fffffff) {
+        return true;
+    }
+
+    return false;
+}
+
+#endif
 
 status_t tracer_read_pa(tracer_t* tracer, addr_t paddr, size_t count, void *buf, size_t *bytes_read)
 {
@@ -104,44 +125,6 @@ char* tracer_read_str(tracer_t* tracer, const access_context_t *ctx) {
     return ret;
 }
 
-/*
-bool valid_region(paddr_t pa, size_t len) {       
-    if (pa > 0x80000000 && pa + len < 0x87ffffff) {
-        return true;
-    }
-
-    if (pa > 0x88001000 && pa + len < 0xf52a3fff) {
-        return true;
-    }
-
-    if (pa > 0xf5570000 && pa + len < 0xf5a5ffff) {
-        return true;
-    }
-
-    if (pa > 0xf5c40000 && pa + len < 0xf5c5ffff) {
-        return true;
-    }
-
-    if (pa > 0xf5f80000 && pa + len < 0xfaf4ffff) {
-        return true;
-    }
-
-    if (pa > 0xfaf90000 && pa + len < 0xfaf9ffff) {
-        return true;
-    }
-
-    if (pa > 0xfaff0000 && pa + len < 0xfeffffff) {
-        return true;
-    }
-
-    if (pa > 0x100000000 && pa + len < 0x47fffffff) {
-        return true;
-    }
-
-    return false;
-}
-*/
-
 status_t tracer_read(
         tracer_t* tracer,
         const access_context_t *ctx,
@@ -182,8 +165,55 @@ status_t tracer_read(
             read_len = count;
         }
 
-	    char *p = NULL;
+	    // char *p = NULL;
         paddr_t pa = (pfn << tracer->page_shift);
+
+
+#ifdef LINUX_BUILD
+        if (!valid_region(pa, read_len)) {
+            goto done;
+        }
+        
+        int result;
+        // unsigned char* tmp_buf = NULL;
+        do {
+            result = open(MEMORY_DEVICE, O_RDONLY);
+        } while (result == -1 && errno == EINTR);
+        if (result == -1) goto done;
+
+        int mem_device = result;
+
+        unsigned char   *d = (unsigned char*)buf + (addr_t)buf_offset;
+        off_t            o = (off_t)(pa + (addr_t)offset);
+        size_t           n = read_len;
+        ssize_t          r;
+
+        while (n) {
+            r = pread(mem_device, d, n, o);
+            if (r == (ssize_t)n) {
+                break;
+            }
+            else {
+                if (r >= (ssize_t)0) {
+                    d += r;
+                    n -= r;
+                    o += r;
+                    continue;
+                }
+                if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
+                    if (mem_device != -1) {
+                        close(mem_device);
+                    }
+
+                    goto done;
+                }
+            }
+        }
+        
+        close(mem_device);
+        mem_device = -1;
+
+#else
         // map the physical page
         if (!core_pbuf_is(CORE_MEM_NON_SEC, pa, TRACER_4KB)) {
             ret = TRACER_F;
@@ -204,7 +234,7 @@ status_t tracer_read(
 			goto done;
 	    }
 
-	    p = (void*)tee_mm_get_smem(mmentry);
+	    char* p = (char*)tee_mm_get_smem(mmentry);
 
 		if (!p) {
 			ret = TRACER_F;
@@ -216,6 +246,7 @@ status_t tracer_read(
 		// unmap range
         core_mmu_unmap_pages((vaddr_t)p, 1);
 	    tee_mm_free(mmentry);
+#endif
 
         count -= read_len;
         buf_offset += read_len;

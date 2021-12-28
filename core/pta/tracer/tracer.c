@@ -172,12 +172,16 @@ static status_t find_page_directories(tracer_t* tracer)
 	return rc;
 }
 
-void create_tracer(void) {
+void create_tracer(void) {	
+	if (g_tracer.initialized) {
+		return;
+	}
+
 	// initialize tracer by getting page table location of normal world
 	//
 	init_symbols(&g_tracer);
 
-	if (find_page_directories(&g_tracer) == TRACER_F) {
+	if (find_page_directories(&g_tracer) == TRACER_F) {		
         return;
     }
 
@@ -186,6 +190,9 @@ void create_tracer(void) {
 
 
 status_t trace_cfa(int req_pid, uint64_t* stack_frames, int num_stack_frames, char* buffer, unsigned int buflen) {
+	if (!g_tracer.initialized) {
+		return TRACER_F;
+	}
     return cfa(&g_tracer, req_pid, stack_frames, num_stack_frames, buffer, buflen);    
 }
 
@@ -198,5 +205,8 @@ status_t trace_civ(char* buffer, unsigned int buflen) {
 }
 
 status_t trace_pslist(void) {
+	if (!g_tracer.initialized) {
+		return TRACER_F;
+	}
 	return process_list(&g_tracer);
 }

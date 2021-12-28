@@ -76,7 +76,7 @@ status_t find_symbol(tracer_t* tracer, addr_t vma_start, addr_t vma_end, char* p
 
     // Exracting address of dynsym and dynstr sections from Dynamic section table entries
     addr_t dynsym_offset = 0, dynstr_offset = 0;
-    addr_t dynsym_entry_size = 0x18, dynstr_size = 0;
+    addr_t dynsym_entry_size = 0x18; //, dynstr_size = 0;
     // addr_t rela_section_offset =0, rela_section_size=0, rela_section_entry=0x18; // set defaults incase not defined
     ctx.addr = text_segment_address + dynamic_section_offset;
 
@@ -99,8 +99,8 @@ status_t find_symbol(tracer_t* tracer, addr_t vma_start, addr_t vma_end, char* p
         if (word == 0x6) // .symtab section offset
             dynsym_offset = ptr;
 
-        if (word == 0xa) // size of .strtab section
-            dynstr_size = ptr;
+        // if (word == 0xa) // size of .strtab section
+        //     dynstr_size = ptr;
         if (word == 0xb) // size of an entry in .symtab section
             dynsym_entry_size = ptr;
     } while (word != 0x0 && ptr != 0x0);
@@ -166,8 +166,8 @@ status_t find_symbol(tracer_t* tracer, addr_t vma_start, addr_t vma_end, char* p
 
     addr_t function_offset = addr - nearest;
     // DMSG("PC: 0x%lx     %s!%s+0x%lx\n", addr, path, symbol_name, function_offset);
-    char symbol_with_offset[100];
-    snprintf(symbol_with_offset, 100, "%s+0x%lx", symbol_name, function_offset);
+    char symbol_with_offset[200];
+    snprintf(symbol_with_offset, 200, "%s+0x%lx", symbol_name, function_offset);
     jwArr_object();
     jwObj_string(symbol_with_offset, path);
     jwEnd();
@@ -190,7 +190,7 @@ status_t analyze_mm(tracer_t* tracer, addr_t process, int pid, addr_t memory_map
     while(1) {
         addr_t vma_start;
         addr_t vma_end;
-        addr_t vma_flags;
+        // addr_t vma_flags;
         size_t bytes_read;
         memset(path, 0, 256);
 
