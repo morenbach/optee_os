@@ -7,38 +7,11 @@
 
 #define MEMORY_DEVICE  ("/dev/fmem")
 
-// TODO: get regions defined in the symbols based on System RAM map in Linux
-bool valid_region(paddr_t pa, size_t len) {       
-    if (pa > 0x80000000 && pa + len < 0x87ffffff) {
-        return true;
-    }
-
-    if (pa > 0x88001000 && pa + len < 0xf52a3fff) {
-        return true;
-    }
-
-    if (pa > 0xf5570000 && pa + len < 0xf5a5ffff) {
-        return true;
-    }
-
-    if (pa > 0xf5c40000 && pa + len < 0xf5c5ffff) {
-        return true;
-    }
-
-    if (pa > 0xf5f80000 && pa + len < 0xfaf4ffff) {
-        return true;
-    }
-
-    if (pa > 0xfaf90000 && pa + len < 0xfaf9ffff) {
-        return true;
-    }
-
-    if (pa > 0xfaff0000 && pa + len < 0xfeffffff) {
-        return true;
-    }
-
-    if (pa > 0x100000000 && pa + len < 0x47fffffff) {
-        return true;
+bool valid_region(tracer_t* tracer, paddr_t pa, size_t len) {       
+    for (int i=0;i<tracer->mem_region_arr_size;i++) {
+        if (pa > tracer->mem_region_start_arr[i] && ((pa + len) < tracer->mem_region_end_arr[i])) {
+            return true;
+        }
     }
 
     return false;
@@ -170,7 +143,7 @@ status_t tracer_read(
 
 
 #ifdef LINUX_BUILD
-        if (!valid_region(pa, read_len)) {
+        if (!valid_region(tracer, pa, read_len)) {
             goto done;
         }
         
@@ -212,7 +185,22 @@ status_t tracer_read(
         
         close(mem_device);
         mem_device = -1;
+#elif defined VIRT_BUILD
+        // send request over untrsted buffer                
+        memcpy(&g_virt_host_buffer[1], &d, sizeof(uintptr_t));
+        memcpy(&g_virt_host_buffer[1+sizeof(uintptr_t)], &w, sizeof(size_t));
+        // mark request as ready 
+        asm volatile("": : :"memory"); // Compile read-write barrier 
+        *g_virt_host_buffer = 1;
 
+        // wait until response is ready with a flag there
+        while (*g_virt_host_buffer == 1) {  
+            // Pause instruction to prevent excess processor bus usage 
+            asm volatile("yield\n": : :"memory");
+        }
+
+        unsigned char* d = (unsigned char*)buf + (addr_t)buf_offset;
+        memcpy(d, &g_virt_host_buffer[1], read_len);
 #else
         // map the physical page
         if (!core_pbuf_is(CORE_MEM_NON_SEC, pa, TRACER_4KB)) {

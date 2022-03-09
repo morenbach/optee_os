@@ -6,6 +6,7 @@
 #include "symbols.h"
 
 tracer_t g_tracer; 
+char* g_virt_host_buffer;
 
 static status_t init_kaslr(tracer_t* tracer)
 {
@@ -172,22 +173,30 @@ static status_t find_page_directories(tracer_t* tracer)
 	return rc;
 }
 
-void create_tracer(void) {	
+void create_tracer(char* req_buffer, unsigned int buflen) {
+	(void) buflen;
+
 	if (g_tracer.initialized) {
 		return;
 	}
+
+	g_virt_host_buffer = req_buffer;
 
 	// initialize tracer by getting page table location of normal world
 	//
 	init_symbols(&g_tracer);
 
 	if (find_page_directories(&g_tracer) == TRACER_F) {		
-        return;
-    }
+        	return;
+    	}
 
 	g_tracer.initialized = true;
 }
 
+
+status_t trace_control_flow(char* data) {
+	return track_control_flow(data);
+}
 
 status_t trace_cfa(int req_pid, uint64_t* stack_frames, int num_stack_frames, char* buffer, unsigned int buflen) {
 	if (!g_tracer.initialized) {

@@ -6,7 +6,7 @@
 #define PAGE_SHIFT 12
 
 status_t find_symbol(tracer_t* tracer, addr_t vma_start, addr_t vma_end, char* path, addr_t process_gpd, addr_t pc) {
-    char symbol_name[100];
+    //char symbol_name[100];
 
     access_context_t ctx = { .pt = process_gpd, .addr = vma_start, .pt_lookup = true };
 
@@ -94,17 +94,25 @@ status_t find_symbol(tracer_t* tracer, addr_t vma_start, addr_t vma_end, char* p
 
         ctx.addr += 0x8;
 
-        if (word == 0x5) // .strtab section offset
-            dynstr_offset = ptr;
-        if (word == 0x6) // .symtab section offset
-            dynsym_offset = ptr;
+	DMSG("VAL 0x%lx\n", ptr);
 
+        if (word == 0x5) { // .strtab section offset
+            dynstr_offset = ptr;
+	    //DMSG("dynstr 0x%lx\n", ptr);
+	}
+        if (word == 0x6) { // .symtab section offset
+            dynsym_offset = ptr;
+	    //DMSG("symtab 0x%lx\n", ptr);
+	}
         // if (word == 0xa) // size of .strtab section
         //     dynstr_size = ptr;
-        if (word == 0xb) // size of an entry in .symtab section
+        if (word == 0xb) { // size of an entry in .symtab section
             dynsym_entry_size = ptr;
+	    //DMSG("dynsym_entry 0x%lx\n", ptr);
+	}
     } while (word != 0x0 && ptr != 0x0);
 
+    //dynsym_offset = 0xaaaaaaabaf88;
     addr_t value;
     offset = dynsym_offset;        
 
@@ -121,30 +129,24 @@ status_t find_symbol(tracer_t* tracer, addr_t vma_start, addr_t vma_end, char* p
 
         addr_t value_addr = text_segment_address + value;
 
+	// DMSG("PC: 0x%lx, CURR: 0x%lx\n", addr, value_addr);
+
         if (addr >= value_addr)
         {
             if (nearest == 0)
             {
                 nearest = value_addr;
                 nearest_offset = offset;
-                // function_name = key_str;
             }
-            else if (addr - value_addr <= addr - nearest)
+            else if (value_addr >= nearest)
             {
-                nearest = value_addr;
+                nearest = value_addr;		
                 nearest_offset = offset;
-                // function_name = key_str;
             }
         }
 
         offset += dynsym_entry_size;
     }
-
-
-    // if (text_segment_address + value < pc) {
-    //     offset += dynsym_entry_size;
-    //     continue;
-    // }
 
     if (!nearest) {
         return TRACER_F;
@@ -156,21 +158,32 @@ status_t find_symbol(tracer_t* tracer, addr_t vma_start, addr_t vma_end, char* p
         return TRACER_F;
     }
 
-    memset(symbol_name, 0, 100);
-    ctx.addr = dynstr_offset + key;
-    size_t bytes_read;
-
-    if (TRACER_F == tracer_read(tracer, &ctx, 100, symbol_name, &bytes_read)) {
+    uint32_t val;
+    ctx.addr =  nearest_offset + tracer->elf64_sym_data.st_value;
+    if(TRACER_F == tracer_read_32bit(tracer, &ctx, &val)) {
         return TRACER_F;
     }
 
+    char* symbol_name = NULL;
+    //memset(symbol_name, 0, 100);
+    ctx.addr = dynstr_offset + key;
+    //size_t bytes_read;
+
+    symbol_name = tracer_read_str(tracer, &ctx);
+    if (symbol_name == NULL) {
+        return TRACER_F;
+    }
+    // DMSG("sym: %s Addr: 0x%lx\n", symbol_name, text_segment_address + val);
+
     addr_t function_offset = addr - nearest;
-    // DMSG("PC: 0x%lx     %s!%s+0x%lx\n", addr, path, symbol_name, function_offset);
+    // DMSG("DYNSTR_OFFSET: 0x%lx KEY: %u, PC: 0x%lx     %s!%s+0x%lx\n", dynstr_offset, key, addr, path, symbol_name, function_offset);
     char symbol_with_offset[200];
     snprintf(symbol_with_offset, 200, "%s+0x%lx", symbol_name, function_offset);
     jwArr_object();
     jwObj_string(symbol_with_offset, path);
     jwEnd();
+
+    free(symbol_name);
 
     return TRACER_S;
 }
@@ -295,7 +308,68 @@ status_t do_cfa(tracer_t* tracer, uint64_t* stack_frames, int num_stack_frames, 
     return TRACER_S;
 }
 
+char* control_flows = NULL;
+int control_flows_idx = 0;
+
+#define INST_SIZE 100
+#define CF_ENTRIES 100 // up to 1 million control flows tracked
+
+status_t track_control_flow(char* data) {
+    if (control_flows == NULL) {
+        control_flows = calloc(INST_SIZE, CF_ENTRIES); 
+
+        if (!control_flows) {
+            DMSG("Allocating control flow structure failed\n");
+            return TRACER_F;
+        }
+    }
+
+    if (control_flows_idx >= CF_ENTRIES)
+	    return TRACER_S; // fail safe for now
+
+    DMSG("TRACK %p %s\n", data, data);
+
+    char* ptr = &control_flows[control_flows_idx * INST_SIZE];
+    strncpy(ptr, data, INST_SIZE);
+    control_flows_idx++;
+
+    DMSG("TRACK...DONE\n");
+    return TRACER_S;
+}
+
 status_t cfa(tracer_t* tracer, int req_pid, uint64_t* stack_frames, int num_stack_frames, char* buffer, unsigned int buflen) {
+    DMSG("IN CFA: %p sz %u num control flows %d\n", buffer, buflen, control_flows_idx);
+
+    jwOpen(buffer, buflen, JW_ARRAY, JW_PRETTY);
+
+    // Iterate over entries and populate the buffer
+    //    
+    for (int i=0;i<control_flows_idx;i++) {
+        char* ptr = &control_flows[i * INST_SIZE];
+        DMSG("CFA: %s\n", ptr);
+        jwArr_object();
+        char* key = strtok(ptr, ":");
+        char* val = strtok(NULL, ":");
+        jwObj_string(key, val);
+        jwEnd();
+    }
+
+    if (jwClose() != JWRITE_OK) {
+        return TRACER_F;
+    }
+
+    // reset for next CFA request
+    if (control_flows) {
+        memset(control_flows, 0, INST_SIZE * control_flows_idx);
+    }
+    control_flows_idx = 0;
+
+    DMSG("DONE CFA\n");
+
+    return TRACER_S;
+}
+
+status_t cfa_old(tracer_t* tracer, int req_pid, uint64_t* stack_frames, int num_stack_frames, char* buffer, unsigned int buflen) {
     // Find process address
     //
     pid_t pid = 0;

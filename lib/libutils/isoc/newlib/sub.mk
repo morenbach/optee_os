@@ -25,3 +25,5 @@ srcs-y += strnlen.c
 srcs-y += strrchr.c
 srcs-y += strstr.c
 srcs-y += strtoul.c
+srcs-y += strtok.c
+#srcs-y += strtok_r.c

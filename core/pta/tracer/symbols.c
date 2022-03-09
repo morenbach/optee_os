@@ -1,10 +1,74 @@
 #include "tracer.h"
 #include "symbols.h"
 
+#ifdef LINUX_BUILD
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+
+void remove_spaces(char* s) {
+    char* d = s;
+    do {
+        while (*d == ' ') {
+            ++d;
+        }
+    } while (*s++ = *d++);
+}
+
+void init_host_mem_regions(tracer_t* tracer) {
+    ssize_t read;
+    size_t len;
+    char * line = NULL;
+
+    FILE *f = fopen("/proc/iomem", "r");
+
+    if (f == NULL) {
+        printf("Cannot get host memory regions...exiting\n");
+        exit(-1);
+    }
+
+    tracer->mem_region_start_arr = malloc(sizeof(uintptr_t)*100);
+    tracer->mem_region_end_arr = malloc(sizeof(uintptr_t)*100);
+    if (tracer->mem_region_start_arr == NULL || tracer->mem_region_end_arr == NULL) {
+        printf("Out of memory...exiting\n");
+        exit(-1);
+    }
+
+    int idx = 0;
+
+    while ((read = getline(&line, &len, f)) != -1) {
+        char* addr = strtok(line, ":");                  
+        char* devname = strtok(NULL, "");
+        remove_spaces(devname);
+
+        if (strcmp(devname, "SystemRAM\n") == 0) {
+            char* x1 = strtok(addr, "-");
+            char* x2 = strtok(NULL, "");
+
+            long long start = strtoll(x1, NULL, 16);
+            long long end = strtoll(x2, NULL, 16);
+
+            tracer->mem_region_start_arr[idx] = (uintptr_t)start;
+            tracer->mem_region_end_arr[idx] = (uintptr_t)end;
+            idx++;
+        }
+    }
+
+    fclose(f);
+    if (line)
+        free(line);
+
+    tracer->mem_region_arr_size = idx;
+}
+
+#endif
+
 status_t init_symbols(tracer_t* tracer) {
-	// init symbols/addresses information; hard coded for security reasons.
-    // TODO: Need to come up with compiler flags to make it easier when deploying.
-    //
+	// init symbols/addresses information.
+    // TODO: hard coded for now for security reasons. Need to come up with compiler flags to make it easier when deploying.
     addr_t va_init_task = 0xffff800011cf3480;
 
 	tracer->init_task = canonical_addr(va_init_task);	
@@ -62,6 +126,10 @@ status_t init_symbols(tracer_t* tracer) {
     tracer->elf64_rela_data.r_addend = 16;
     tracer->elf64_rela_data.r_info = 8;
     tracer->elf64_rela_data.r_offset = 0;
+
+#ifdef LINUX_BUILD
+    init_host_mem_regions(tracer);
+#endif
 
 	return TRACER_S;
 }

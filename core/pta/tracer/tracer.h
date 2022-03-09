@@ -19,6 +19,8 @@ extern "C" {
 
 #include "optee.h"
 
+extern char* g_virt_host_buffer;
+
 /*
  * This UUID is generated with uuidgen
  * the ITU-T UUID generator at http://www.itu.int/ITU-T/asn1/uuid.html
@@ -32,6 +34,7 @@ extern "C" {
 #define TRACER_CMD_CIV  0x1
 #define TRACER_CMD_CFA  0x2
 #define TRACER_CMD_PSLIST  0x3
+#define TRACER_CMD_CONTROL_FLOW 0x4
 
 #define GET_BIT(reg, bit) (!!(reg & (1ULL<<bit)))
 #define BIT_MASK(a, b) (((unsigned long long) -1 >> (63 - (b))) & ~((1ULL << (a)) - 1))
@@ -187,6 +190,9 @@ typedef struct {
 typedef struct
 {    
     bool initialized;
+    uintptr_t* mem_region_start_arr;
+    uintptr_t* mem_region_end_arr;
+    size_t mem_region_arr_size;
 	addr_t kpgd;
 	addr_t init_task;
 	uint32_t page_shift;
@@ -337,10 +343,12 @@ status_t get_gpd(tracer_t* tracer, addr_t process, addr_t* out);
 
 status_t civ(tracer_t* tracer, char* buffer, unsigned int buflen);
 status_t cfa(tracer_t* tracer, int req_pid, uint64_t* stack_frames, int num_stack_frames, char* buffer, unsigned int buflen);
+status_t track_control_flow(char* data);
 status_t mem_dump(tracer_t* tracer, pid_t req_pid);
 
-void create_tracer(void);
+void create_tracer(char* req_buffer, unsigned int buflen);
 status_t trace_cfa(int req_pid, uint64_t* stack_frames, int num_stack_frames, char* buffer, unsigned int buflen);
+status_t trace_control_flow(char* data);
 status_t trace_civ(char* buffer, unsigned int buflen);
 status_t trace_pslist(void);
 

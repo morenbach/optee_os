@@ -30,6 +30,8 @@ char *strstr(const char *big, const char *little);
 char *strcpy(char *dest, const char *src);
 char *strncpy(char *dest, const char *src, size_t n);
 char *strrchr(const char *s, int i);
+char *strtok(char* s, const char* delim);
+
 
 void *memchr(const void *buf, int c, size_t length);
 
